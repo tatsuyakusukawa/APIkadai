@@ -1,0 +1,131 @@
+    <!DOCTYPE html>
+    <html lang="ja">
+    <head>
+        <meta charset="UTF-8" />
+        <meta
+        name="viewport"
+        content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"
+        />
+        <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.3.4/axios.min.js"></script>
+        <title>Document</title>
+        <link rel="icon" href="path/to/favicon.ico" type="image/x-icon">
+
+        <style></style>
+
+    </head>
+    <body>
+        <main>
+        <h2>ChatGPT の Chat completions API</h2>
+        <p>相手の性格<span>
+            <select name="personality">
+                <option value="ギャル">ギャル</option>
+                <option value="ツンデレ">ツンデレ</option>
+                <option value="古風なオタク">古風なオタク</option>
+            </select>
+        </span>
+        </p>
+        <!-- 性格を選択できるようにする -->
+
+        <input type="text" name="talk" />
+        <!-- 音声認識開始ボタン -->
+        <button type="button" class="start">音声認識開始</button>
+        <button type="button" class="stop">音声認識停止</button>
+        <button type="button" class="send">送信</button>
+        <div class="output"></div>
+        <audio class="audio" ></audio>
+        </main>
+        <script>
+
+        // 音声認識を開始する
+            const recognition = new webkitSpeechRecognition(); // prefix 必要 SpeechRecognition
+        recognition.lang = "ja";
+        recognition.continuous = true;
+        recognition.onresult = ({ results }) => {
+            // 認識した結果をinput name="talk"に入れる
+            const text = document.querySelector("[name=talk]");
+            text.value = results[0][0].transcript;
+
+        };
+
+        const startButton = document.querySelector(".start");
+        startButton.addEventListener("click", () => {
+            recognition.start();
+        });
+        const stopButton = document.querySelector(".stop");
+        stopButton.addEventListener("click", () => {
+            recognition.stop();
+        });
+
+        const api_key = "hogehogehogheogeohoe";
+
+        const sendButton = document.querySelector(".send");
+        
+        sendButton.addEventListener("click", async () => {
+            const text = document.querySelector("[name=talk]");
+            const responseText = await requestChatAPI(text.value);
+            const output = document.querySelector(".output");
+            output.textContent = responseText;
+            console.log(responseText);
+            await createAudio(responseText);
+
+        });
+
+        // ずんだもんの音声を作成する
+        async function createAudio(responseText) {
+            const data = await createVoice(responseText);
+            const audio = document.querySelector(".audio");
+            audio.src = URL.createObjectURL(data);
+            audio.play();
+        }
+        async function createQuery(responseText) {
+            const response = await axios.post(
+            `http://localhost:50021/audio_query?speaker=1&text=${responseText}`
+            );
+            return response.data;
+        }
+        async function createVoice(responseText) {
+            const query = await createQuery(responseText);
+            const response = await axios.post(
+            "http://localhost:50021/synthesis?speaker=1",
+            query,
+            { responseType: "blob" }
+            );
+            return response.data;
+        }
+
+
+        // Chat completions API を叩く
+        async function requestChatAPI(text) {
+            const headers = {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${api_key}`,
+            };
+
+            // 選択した性格を取得する
+            const personality = document.querySelector("[name=personality]").value;
+            console.log(personality);
+            const messages = [
+                {role: "system", content: `あなたは${personality}です。短い会話を往復したいので、${personality}の性格になりきって120文字以内で会話を続けてください`},
+                {role: "user", content: text},
+            ];
+
+
+
+            const payload = {
+            model: "gpt-3.5-turbo",
+            max_tokens: 128,
+            messages: messages,
+            };
+            const response = await axios.post(
+            "https://api.openai.com/v1/chat/completions",
+            payload,
+            {
+                headers: headers,
+            }
+            );
+            return response.data.choices[0].message.content;
+        }
+        </script>
+    </body>
+    </html>
